@@ -51,6 +51,10 @@ from langchain_community.document_transformers import EmbeddingsRedundantFilter,
 from langchain.retrievers.document_compressors import EmbeddingsFilter
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.document_loaders import PyPDFDirectoryLoader
+
+from dotenv import load_dotenv
+load_dotenv()
+
 loader = PyPDFDirectoryLoader("Documents")
 documents = loader.load()
 # Create a RecursiveCharacterTextSplitter
@@ -71,17 +75,19 @@ def select_embeddings_model(LLM_service="HuggingFace"):
     if LLM_service == "Google":
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
-            google_api_key="AIzaSyCMA5G8t2UnD5q92arsYrwAbSm19xZlZV4",
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
             timeout=300
         )
     if LLM_service == "HuggingFace":
         embeddings = HuggingFaceInferenceAPIEmbeddings(
-            api_key="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",
+            api_key=os.getenv("HG_API_KEY"),
             model_name="sentence-transformers/all-MiniLM-L12-v2"
         )
     return embeddings
+    
 embeddings_google = select_embeddings_model(LLM_service="HuggingFace")
 #embeddings_HuggingFace = select_embeddings_model(LLM_service="HuggingFace")
+
 def create_vectorstore(embeddings,documents,vectorstore_name):
     """Create a Chroma vector database."""
     LOCAL_VECTOR_STORE_DIR = Path("vector_store")
@@ -98,6 +104,7 @@ vector_store_google = create_vectorstore(
         vectorstore_name="Ifri"
     )
 print("vector_store_google:",vector_store_google._collection.count(),"chunks.")
+
 def Vectorstore_backed_retriever(vectorstore,search_type="similarity",k=5,score_threshold=None):
     """create a vectorsore-backed retriever
     Parameters:
@@ -117,7 +124,8 @@ def Vectorstore_backed_retriever(vectorstore,search_type="similarity",k=5,score_
     )
     return retriever
 base_retriever_google = Vectorstore_backed_retriever(vector_store_google,"similarity",k=5)
-def instantiate_LLM(LLM_provider="HuggingFace",api_key="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",temperature=0.5,top_p=0.95,model_name=None):
+
+def instantiate_LLM(LLM_provider="HuggingFace",api_key=os.getenv("GOOGLE_API_KEY"),temperature=0.5,top_p=0.95,model_name=None):
     """Instantiate LLM in Langchain.
     Parameters:
         LLM_provider (str): the LLM provider; in ["OpenAI","Google","HuggingFace"]
@@ -158,6 +166,7 @@ def instantiate_LLM(LLM_provider="HuggingFace",api_key="hf_qacSNZvozCoeQfQCkxpbR
             },
         )
     return llm
+    
 def create_memory(model_name='gpt-3.5-turbo',memory_max_token=None):
     """Creates a ConversationSummaryBufferMemory for gpt-3.5-turbo
     Creates a ConversationBufferMemory for the other models."""
@@ -180,6 +189,7 @@ def create_memory(model_name='gpt-3.5-turbo',memory_max_token=None):
             input_key="question",
         )
     return memory
+    
 def answer_template(language="french"):
     """Pass the standalone question along with the chat history and context (retrieved documents) to the `LLM` to get an answer."""
     template = f"""Answer the question at the end, using only the following context (delimited by <context></context>).
@@ -195,6 +205,7 @@ Language: {language}.
 def _combine_documents(docs, document_prompt, document_separator="\n\n"):
     doc_strings = [format_document(doc, document_prompt) for doc in docs]
     return document_separator.join(doc_strings)
+    
 def custom_ConversationalRetrievalChain(
     llm,condense_question_llm,
     retriever,
@@ -263,11 +274,12 @@ Standalone question:"""
     conversational_retriever_chain = chain_question | retrieved_documents | chain_answer
     print("Conversational retriever chain created successfully!")
     return conversational_retriever_chain,memory
+    
 chain_gemini,memory_gemini = custom_ConversationalRetrievalChain(
     llm = instantiate_LLM(
-         LLM_provider="Google",api_key="AIzaSyCMA5G8t2UnD5q92arsYrwAbSm19xZlZV4",temperature=0.5,model_name="gemini-1.5-pro"),
+         LLM_provider="Google",api_key=os.getenv("GOOGLE_API_KEY"),temperature=0.5,model_name="gemini-1.5-pro"),
     condense_question_llm = instantiate_LLM(
-    LLM_provider="Google",api_key="AIzaSyCMA5G8t2UnD5q92arsYrwAbSm19xZlZV4",temperature=0.1,model_name="gemini-1.5-pro"),
+    LLM_provider="Google",api_key=os.getenv("GOOGLE_API_KEY"),temperature=0.1,model_name="gemini-1.5-pro"),
     retriever=base_retriever_google,
     language="french",
     llm_provider="Google",
